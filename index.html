@@ -99,20 +99,23 @@ async function decryptData(box,k){const plain=await crypto.subtle.decrypt({name:
 async function persist(){const box=await encryptData(db,key);localStorage.setItem(DBKEY,JSON.stringify(box))}
 function escapeHTML(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function personName(id){return db.students.find(x=>x.id===id)?.name||'Alumno'}
+function isActiveStudent(s){return s.active!==false}
 function payerName(c){return c.groupId?(db.groups.find(g=>g.id===c.groupId)?.name||'Grupo'):personName(c.studentId)}
 function paid(c){return db.payments.filter(p=>p.chargeId===c.id).reduce((s,p)=>s+p.amount,0)}
 function balance(c){return Math.max(0,c.fee-paid(c))}
 function periodLabel(m){let [y,mm]=m.split('-');return new Date(Number(y),Number(mm)-1,1).toLocaleDateString('es-AR',{month:'long',year:'numeric'})}
 function render(){
  const m=monthNow();$('income').textContent=money(db.payments.filter(p=>p.date.startsWith(m)).reduce((s,p)=>s+p.amount,0));
- $('pending').textContent=money(db.charges.reduce((s,c)=>s+balance(c),0));$('count').textContent=db.students.length;
+ $('pending').textContent=money(db.charges.reduce((s,c)=>s+balance(c),0));$('count').textContent=db.students.filter(isActiveStudent).length;
  $('monthStatus').innerHTML=renderCharges(db.charges.filter(c=>c.month===m));
- $('studentList').innerHTML=db.students.length?'<div class="tablewrap"><table><tr><th>Alumno</th><th>Cuota individual</th><th>Grupo</th></tr>'+db.students.map(s=>`<tr><td>${escapeHTML(s.name)}</td><td>${money(s.fee)}</td><td>${escapeHTML(db.groups.find(g=>g.id===s.groupId)?.name||'—')}</td></tr>`).join('')+'</table></div>':'<p class="muted">Todavía no hay alumnos.</p>';
- $('groupList').innerHTML='<h3>Grupos familiares</h3>'+(db.groups.length?db.groups.map(g=>`<p><b>${escapeHTML(g.name)}</b> · ${money(g.fee)} / mes · ${db.students.filter(s=>s.groupId===g.id).map(s=>escapeHTML(s.name)).join(', ')||'Sin integrantes'}</p>`).join(''):'<p class="muted">No hay grupos.</p>');
+ const activeStudents=db.students.filter(isActiveStudent), inactiveStudents=db.students.filter(s=>!isActiveStudent(s));
+ const studentTable=list=>'<div class="tablewrap"><table><tr><th>Alumno</th><th>Cuota individual</th><th>Grupo</th><th>Acción</th></tr>'+list.map(s=>`<tr><td>${escapeHTML(s.name)}</td><td>${money(s.fee)}</td><td>${escapeHTML(db.groups.find(g=>g.id===s.groupId)?.name||'—')}</td><td><button data-student-action="${isActiveStudent(s)?'archive':'restore'}" data-student-id="${s.id}">${isActiveStudent(s)?'Dar de baja':'Reactivar'}</button></td></tr>`).join('')+'</table></div>';
+ $('studentList').innerHTML=(activeStudents.length?'<h3>Alumnos activos</h3>'+studentTable(activeStudents):'<p class="muted">No hay alumnos activos.</p>')+(inactiveStudents.length?'<hr><h3>Alumnos dados de baja</h3>'+studentTable(inactiveStudents):'');
+ $('groupList').innerHTML='<h3>Grupos familiares</h3>'+(db.groups.length?db.groups.map(g=>`<p><b>${escapeHTML(g.name)}</b> · ${money(g.fee)} / mes · ${db.students.filter(s=>s.groupId===g.id).map(s=>escapeHTML(s.name)+(isActiveStudent(s)?'':' (baja)')).join(', ')||'Sin integrantes'}</p>`).join(''):'<p class="muted">No hay grupos.</p>');
  $('sGroup').innerHTML='<option value="">Sin grupo</option>'+db.groups.map(g=>`<option value="${g.id}">${escapeHTML(g.name)}</option>`).join('');
  const open=db.charges.filter(c=>balance(c)>0).sort((a,b)=>a.month.localeCompare(b.month));
  const selectedStudent=$('paymentStudent').value;
- $('paymentStudent').innerHTML='<option value="">Seleccionar alumno…</option>'+db.students.slice().sort((a,b)=>a.name.localeCompare(b.name,'es')).map(st=>`<option value="${st.id}">${escapeHTML(st.name)}${st.groupId?' · '+escapeHTML(db.groups.find(g=>g.id===st.groupId)?.name||'Grupo familiar'):''}</option>`).join('');
+ $('paymentStudent').innerHTML='<option value="">Seleccionar alumno…</option>'+db.students.filter(isActiveStudent).slice().sort((a,b)=>a.name.localeCompare(b.name,'es')).map(st=>`<option value="${st.id}">${escapeHTML(st.name)}${st.groupId?' · '+escapeHTML(db.groups.find(g=>g.id===st.groupId)?.name||'Grupo familiar'):''}</option>`).join('');
  if(selectedStudent && db.students.some(st=>st.id===selectedStudent)) $('paymentStudent').value=selectedStudent;
  updatePaymentObligations(false);
  $('chargeList').innerHTML=renderCharges([...db.charges].sort((a,b)=>b.month.localeCompare(a.month)));
@@ -145,12 +148,13 @@ $('unlock').onclick=async()=>{
 };
 if(!window.crypto?.subtle){$('lockText').textContent='Este navegador no habilita cifrado seguro en este contexto. Abrí la aplicación desde su dirección HTTPS.';$('unlock').disabled=true}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
-$('studentForm').onsubmit=async e=>{e.preventDefault();let gid=$('sGroup').value;db.students.push({id:uid(),name:$('sName').value.trim(),fee:Number($('sFee').value)||0,groupId:gid||null,note:$('sNote').value});e.target.reset();await refresh()};
+$('studentForm').onsubmit=async e=>{e.preventDefault();let gid=$('sGroup').value;db.students.push({id:uid(),name:$('sName').value.trim(),fee:Number($('sFee').value)||0,groupId:gid||null,note:$('sNote').value,active:true});e.target.reset();await refresh()};
 $('groupForm').onsubmit=async e=>{e.preventDefault();db.groups.push({id:uid(),name:$('gName').value.trim(),fee:Number($('gFee').value)});e.target.reset();await refresh()};
+$('studentList').onclick=async e=>{const btn=e.target.closest('button[data-student-action]');if(!btn)return;const st=db.students.find(s=>s.id===btn.dataset.studentId);if(!st)return;if(btn.dataset.studentAction==='archive'){if(!confirm(`¿Dar de baja a ${st.name}? Se conservarán sus cuotas, pagos e historial. Dejará de aparecer al registrar pagos y no generará nuevas cuotas individuales.`))return;st.active=false}else{if(!confirm(`¿Reactivar a ${st.name}? Volverá a aparecer al registrar pagos y podrá generar nuevas cuotas.`))return;st.active=true}await refresh()};
 $('generate').onclick=async()=>{
  const m=$('chargeMonth').value;if(!m){alert('Elegí un mes.');return}
- let created=0;for(const s of db.students.filter(s=>!s.groupId&&s.fee>0)){if(!db.charges.some(c=>c.month===m&&c.studentId===s.id)){db.charges.push({id:uid(),month:m,studentId:s.id,groupId:null,fee:s.fee});created++}}
- for(const g of db.groups.filter(g=>g.fee>0)){if(!db.charges.some(c=>c.month===m&&c.groupId===g.id)){db.charges.push({id:uid(),month:m,studentId:null,groupId:g.id,fee:g.fee});created++}}
+ let created=0;for(const s of db.students.filter(s=>isActiveStudent(s)&&!s.groupId&&s.fee>0)){if(!db.charges.some(c=>c.month===m&&c.studentId===s.id)){db.charges.push({id:uid(),month:m,studentId:s.id,groupId:null,fee:s.fee});created++}}
+ for(const g of db.groups.filter(g=>g.fee>0&&db.students.some(s=>s.groupId===g.id&&isActiveStudent(s)))){if(!db.charges.some(c=>c.month===m&&c.groupId===g.id)){db.charges.push({id:uid(),month:m,studentId:null,groupId:g.id,fee:g.fee});created++}}
  $('chargeResult').textContent=`Se generaron ${created} obligación(es) para ${periodLabel(m)}.`;await refresh()
 };
 $('paymentStudent').onchange=()=>updatePaymentObligations(true);
