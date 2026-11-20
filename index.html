@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#172b4d">
+<meta name="description" content="Registro privado y offline de cuotas y pagos de clases de guitarra">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Mis clases de guitarra</title>
+<style>
+:root{--navy:#172b4d;--blue:#2457a6;--bg:#f3f5f8;--line:#e2e7ef;--muted:#68758a;--green:#16794b;--red:#b33a3a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#1d2939;font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+header{background:var(--navy);color:white;padding:20px max(16px,calc((100% - 1050px)/2))}
+header h1{font-size:21px;margin:0 0 4px}header p{margin:0;color:#d5deec;font-size:13px}
+main{max-width:1050px;margin:18px auto;padding:0 14px 40px}
+nav{display:flex;gap:7px;overflow:auto;margin-bottom:15px}button,.tab{border:0;border-radius:10px;padding:10px 13px;background:#e5ebf4;color:var(--navy);font-weight:650;cursor:pointer}
+nav button.active,.primary{background:var(--blue);color:white}.danger{background:#fae8e8;color:var(--red)}button:disabled{opacity:.5}
+.panel{display:none}.panel.active{display:block}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.stat{font-size:25px;font-weight:750;color:var(--navy)}
+label{display:block;font-size:13px;font-weight:650;color:#475467;margin:0 0 5px}
+input,select,textarea{width:100%;padding:10px;border:1px solid #ccd5e2;border-radius:9px;background:white;font:inherit;color:#1d2939}
+textarea{min-height:65px}.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:11px;margin-bottom:11px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{color:var(--muted);font-size:13px}
+.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 7px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted)}
+.notice{padding:12px;background:#eef4ff;border-radius:10px;color:#29466f;font-size:13px;line-height:1.5}
+.hidden{display:none!important}.tag{font-size:12px;border-radius:20px;padding:3px 8px;background:#e8f5ed;color:var(--green)}.warn{background:#fff3df;color:#936000}
+#lock{position:fixed;inset:0;background:var(--navy);color:white;z-index:5;display:flex;align-items:center;justify-content:center;padding:20px}
+.lockbox{max-width:360px;width:100%;text-align:center}.lockbox input{text-align:center;font-size:25px;letter-spacing:8px;margin:12px 0}
+h2{font-size:18px;color:var(--navy);margin:0 0 12px}h3{font-size:15px;margin:0 0 9px}
+@media(max-width:600px){header{padding:17px}nav button{padding:9px 11px}}
+</style>
+</head>
+<body>
+<div id="lock">
+ <div class="lockbox">
+  <div style="font-size:40px">🎸</div><h1>Mis clases de guitarra</h1>
+  <p id="lockText">Creá un PIN de 4 a 6 dígitos para cifrar tus datos.</p>
+  <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off">
+  <button class="primary" id="unlock">Continuar</button>
+  <p class="muted" style="color:#d5deec">Sin recuperación del PIN. Guardá tu copia cifrada y recordá tu clave.</p>
+ </div>
+</div>
+<header><h1>🎸 Mis clases de guitarra</h1><p>Cuotas, pagos y períodos · almacenamiento local cifrado</p></header>
+<main id="app" class="hidden">
+<nav>
+<button class="active" data-tab="home">Resumen</button><button data-tab="students">Alumnos y familias</button><button data-tab="charges">Cuotas</button><button data-tab="payments">Registrar pago</button><button data-tab="debts">Deudas</button><button data-tab="history">Historial</button><button data-tab="backup">Seguridad</button>
+</nav>
+<section id="home" class="panel active">
+ <div class="grid">
+  <div class="card"><div class="muted">Cobrado este mes</div><div class="stat" id="income">$0</div></div>
+  <div class="card"><div class="muted">Pendiente total</div><div class="stat" id="pending">$0</div></div>
+  <div class="card"><div class="muted">Alumnos</div><div class="stat" id="count">0</div></div>
+ </div>
+ <div class="card"><h2>Estado del mes</h2><div id="monthStatus"></div></div>
+ <div class="notice">Los datos se cifran en este dispositivo con el PIN. La aplicación no incluye analítica, publicidad ni sincronización. El código de instalación se descarga desde el alojamiento web, pero los registros no se envían allí.</div>
+</section>
+<section id="students" class="panel">
+ <div class="card"><h2>Agregar alumno</h2>
+ <form id="studentForm"><div class="formgrid">
+  <div><label>Nombre o referencia *</label><input id="sName" required></div>
+  <div><label>Cuota mensual individual ($)</label><input id="sFee" type="number" min="0" step=".01" value="0"></div>
+  <div><label>Grupo familiar (opcional)</label><select id="sGroup"><option value="">Sin grupo</option></select></div>
+ </div><div><label>Notas</label><input id="sNote"></div><div class="actions"><button class="primary">Guardar alumno</button></div></form></div>
+ <div class="card"><h2>Crear grupo familiar</h2><form id="groupForm"><div class="formgrid"><div><label>Nombre del grupo *</label><input id="gName" placeholder="Ej. Familia Pérez" required></div><div><label>Cuota mensual única ($) *</label><input id="gFee" type="number" min="0.01" step=".01" required></div></div><div class="actions"><button class="primary">Crear grupo</button></div></form><p class="muted">Después podés asignar cada hermano a este grupo desde su ficha. El grupo genera una sola cuota mensual compartida.</p></div>
+ <div class="card"><h2>Alumnos y grupos</h2><div id="studentList"></div><hr><div id="groupList"></div></div>
+</section>
+<section id="charges" class="panel">
+ <div class="card"><h2>Generar cuotas del mes</h2><p class="muted">Genera una obligación por alumno individual y una sola obligación por grupo familiar. No duplica períodos ya generados.</p>
+ <div class="formgrid"><div><label>Mes</label><input id="chargeMonth" type="month"></div></div><button class="primary" id="generate">Generar cuotas</button><div id="chargeResult" class="muted"></div></div>
+ <div class="card"><h2>Obligaciones registradas</h2><div id="chargeList"></div></div>
+</section>
+<section id="payments" class="panel">
+ <div class="card"><h2>Registrar pago</h2><form id="paymentForm">
+ <div class="formgrid"><div><label>Aplicar a obligación pendiente *</label><select id="obligation" required></select></div><div><label>Importe recibido ($) *</label><input id="amount" type="number" min=".01" step=".01" required></div><div><label>Fecha de pago *</label><input id="payDate" type="date" required></div><div><label>Medio</label><select id="method"><option>Efectivo</option><option>Transferencia</option><option>Mercado Pago</option><option>Otro</option></select></div></div>
+ <div><label>Observaciones</label><textarea id="payNote"></textarea></div><div class="actions"><button class="primary">Guardar pago</button></div></form></div>
+ <div class="notice">Los pagos parciales reducen el saldo de la obligación elegida. Si pagás varios meses, registrá cada período por separado para mantener el detalle.</div>
+</section>
+<section id="debts" class="panel"><div class="card"><h2>Deudas pendientes</h2><div id="debtList"></div></div></section>
+<section id="history" class="panel"><div class="card"><h2>Historial de movimientos</h2><div class="formgrid"><div><label>Filtrar por mes de obligación</label><input type="month" id="histMonth"></div></div><div id="historyList"></div></div></section>
+<section id="backup" class="panel">
+ <div class="card"><h2>Copias de seguridad cifradas</h2><p class="muted">La copia se cifra con el PIN actual. Guardala en una ubicación privada. Para restaurarla necesitás el PIN con el que se creó.</p><div class="actions"><button class="primary" id="export">Crear copia cifrada</button><label for="restoreFile" class="tab">Restaurar copia</label><input id="restoreFile" type="file" accept="application/json" class="hidden"></div></div>
+ <div class="card"><h2>Bloquear aplicación</h2><button id="lockNow">Bloquear ahora</button></div>
+ <div class="card"><h2>Eliminar todos los datos</h2><p class="muted">No se puede deshacer. Sin PIN ni copia válida, no hay recuperación.</p><button class="danger" id="wipe">Borrar todos los datos</button></div>
+</section>
+</main>
+<script>
+const DBKEY='guitarra_cipher_v1', SALTKEY='guitarra_salt_v1';
+let key=null,db={students:[],groups:[],charges:[],payments:[]};
+const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:2}).format(Number(n)||0);
+const today=()=>new Date().toISOString().slice(0,10), monthNow=()=>today().slice(0,7);
+const uid=()=>crypto.randomUUID();
+const enc=new TextEncoder(),dec=new TextDecoder();
+function b64(bytes){return btoa(String.fromCharCode(...new Uint8Array(bytes)))}
+function unb64(s){return Uint8Array.from(atob(s),c=>c.charCodeAt(0))}
+async function derive(pin,salt){const material=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:310000,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function encryptData(data,k){const iv=crypto.getRandomValues(new Uint8Array(12));const cipher=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,enc.encode(JSON.stringify(data)));return {iv:b64(iv),cipher:b64(cipher)}}
+async function decryptData(box,k){const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(box.iv)},k,unb64(box.cipher));return JSON.parse(dec.decode(plain))}
+async function persist(){const box=await encryptData(db,key);localStorage.setItem(DBKEY,JSON.stringify(box))}
+function escapeHTML(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function personName(id){return db.students.find(x=>x.id===id)?.name||'Alumno'}
+function payerName(c){return c.groupId?(db.groups.find(g=>g.id===c.groupId)?.name||'Grupo'):personName(c.studentId)}
+function paid(c){return db.payments.filter(p=>p.chargeId===c.id).reduce((s,p)=>s+p.amount,0)}
+function balance(c){return Math.max(0,c.fee-paid(c))}
+function periodLabel(m){let [y,mm]=m.split('-');return new Date(Number(y),Number(mm)-1,1).toLocaleDateString('es-AR',{month:'long',year:'numeric'})}
+function render(){
+ const m=monthNow();$('income').textContent=money(db.payments.filter(p=>p.date.startsWith(m)).reduce((s,p)=>s+p.amount,0));
+ $('pending').textContent=money(db.charges.reduce((s,c)=>s+balance(c),0));$('count').textContent=db.students.length;
+ $('monthStatus').innerHTML=renderCharges(db.charges.filter(c=>c.month===m));
+ $('studentList').innerHTML=db.students.length?'<div class="tablewrap"><table><tr><th>Alumno</th><th>Cuota individual</th><th>Grupo</th></tr>'+db.students.map(s=>`<tr><td>${escapeHTML(s.name)}</td><td>${money(s.fee)}</td><td>${escapeHTML(db.groups.find(g=>g.id===s.groupId)?.name||'—')}</td></tr>`).join('')+'</table></div>':'<p class="muted">Todavía no hay alumnos.</p>';
+ $('groupList').innerHTML='<h3>Grupos familiares</h3>'+(db.groups.length?db.groups.map(g=>`<p><b>${escapeHTML(g.name)}</b> · ${money(g.fee)} / mes · ${db.students.filter(s=>s.groupId===g.id).map(s=>escapeHTML(s.name)).join(', ')||'Sin integrantes'}</p>`).join(''):'<p class="muted">No hay grupos.</p>');
+ $('sGroup').innerHTML='<option value="">Sin grupo</option>'+db.groups.map(g=>`<option value="${g.id}">${escapeHTML(g.name)}</option>`).join('');
+ const open=db.charges.filter(c=>balance(c)>0).sort((a,b)=>a.month.localeCompare(b.month));
+ $('obligation').innerHTML='<option value="">Seleccionar obligación…</option>'+open.map(c=>`<option value="${c.id}">${escapeHTML(payerName(c))} · ${periodLabel(c.month)} · saldo ${money(balance(c))}</option>`).join('');
+ $('chargeList').innerHTML=renderCharges([...db.charges].sort((a,b)=>b.month.localeCompare(a.month)));
+ $('debtList').innerHTML=renderCharges(open);
+ const hm=$('histMonth').value;$('historyList').innerHTML=renderPayments(db.payments.filter(p=>!hm||db.charges.find(c=>c.id===p.chargeId)?.month===hm));
+}
+function renderCharges(list){if(!list.length)return '<p class="muted">No hay registros para mostrar.</p>';return '<div class="tablewrap"><table><tr><th>Responsable</th><th>Período</th><th>Cuota</th><th>Pagado</th><th>Saldo</th></tr>'+list.map(c=>`<tr><td>${escapeHTML(payerName(c))}</td><td>${periodLabel(c.month)}</td><td>${money(c.fee)}</td><td>${money(paid(c))}</td><td><b>${money(balance(c))}</b> ${balance(c)===0?'<span class="tag">Saldado</span>':'<span class="tag warn">Pendiente</span>'}</td></tr>`).join('')+'</table></div>'}
+function renderPayments(list){if(!list.length)return '<p class="muted">No hay pagos.</p>';return '<div class="tablewrap"><table><tr><th>Fecha</th><th>Responsable</th><th>Período</th><th>Importe</th><th>Medio</th></tr>'+list.sort((a,b)=>b.date.localeCompare(a.date)).map(p=>{let c=db.charges.find(x=>x.id===p.chargeId);return `<tr><td>${p.date}</td><td>${escapeHTML(c?payerName(c):'Obligación')}</td><td>${c?periodLabel(c.month):'—'}</td><td>${money(p.amount)}</td><td>${escapeHTML(p.method)}</td></tr>`}).join('')+'</table></div>'}
+async function refresh(){await persist();render()}
+$('unlock').onclick=async()=>{
+ const pin=$('pin').value;if(!/^\d{4,6}$/.test(pin)){alert('Ingresá un PIN de 4 a 6 dígitos.');return}
+ try{
+  const saltStored=localStorage.getItem(SALTKEY);
+  if(!saltStored){const salt=crypto.getRandomValues(new Uint8Array(16));localStorage.setItem(SALTKEY,b64(salt));key=await derive(pin,salt);await persist()}
+  else{key=await derive(pin,unb64(saltStored));const raw=localStorage.getItem(DBKEY);if(raw)db=await decryptData(JSON.parse(raw),key);else await persist()}
+  $('lock').classList.add('hidden');$('app').classList.remove('hidden');$('pin').value='';render();
+ }catch(e){alert('PIN incorrecto o datos dañados. No existe recuperación del PIN.');$('pin').value=''}
+};
+if(!window.crypto?.subtle){$('lockText').textContent='Este navegador no habilita cifrado seguro en este contexto. Abrí la aplicación desde su dirección HTTPS.';$('unlock').disabled=true}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active')});
+$('studentForm').onsubmit=async e=>{e.preventDefault();let gid=$('sGroup').value;db.students.push({id:uid(),name:$('sName').value.trim(),fee:Number($('sFee').value)||0,groupId:gid||null,note:$('sNote').value});e.target.reset();await refresh()};
+$('groupForm').onsubmit=async e=>{e.preventDefault();db.groups.push({id:uid(),name:$('gName').value.trim(),fee:Number($('gFee').value)});e.target.reset();await refresh()};
+$('generate').onclick=async()=>{
+ const m=$('chargeMonth').value;if(!m){alert('Elegí un mes.');return}
+ let created=0;for(const s of db.students.filter(s=>!s.groupId&&s.fee>0)){if(!db.charges.some(c=>c.month===m&&c.studentId===s.id)){db.charges.push({id:uid(),month:m,studentId:s.id,groupId:null,fee:s.fee});created++}}
+ for(const g of db.groups.filter(g=>g.fee>0)){if(!db.charges.some(c=>c.month===m&&c.groupId===g.id)){db.charges.push({id:uid(),month:m,studentId:null,groupId:g.id,fee:g.fee});created++}}
+ $('chargeResult').textContent=`Se generaron ${created} obligación(es) para ${periodLabel(m)}.`;await refresh()
+};
+$('paymentForm').onsubmit=async e=>{e.preventDefault();const c=db.charges.find(c=>c.id===$('obligation').value),amt=Number($('amount').value);if(!c||amt<=0){alert('Elegí una obligación e ingresá un importe válido.');return}if(amt>balance(c)+0.001){alert('El importe supera el saldo pendiente de esa obligación.');return}
+ db.payments.push({id:uid(),chargeId:c.id,amount:amt,date:$('payDate').value,method:$('method').value,note:$('payNote').value});e.target.reset();$('payDate').value=today();await refresh();alert('Pago registrado.')};
+$('histMonth').onchange=render;
+$('export').onclick=async()=>{try{const box=await encryptData(db,key);const file={format:'guitarra-backup-v1',salt:localStorage.getItem(SALTKEY),box};const blob=new Blob([JSON.stringify(file)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='respaldo-guitarra-cifrado.json';a.click();URL.revokeObjectURL(a.href)}catch(e){alert('No se pudo crear el respaldo.')}};
+$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const file=JSON.parse(await f.text());if(file.format!=='guitarra-backup-v1')throw Error();const pin=prompt('Ingresá el PIN con el que se creó la copia:');if(!pin) return;const k=await derive(pin,unb64(file.salt));const restored=await decryptData(file.box,k);if(!confirm('La restauración reemplazará los datos actuales. ¿Continuar?'))return;db=restored;key=k;localStorage.setItem(SALTKEY,file.salt);await persist();render();alert('Copia restaurada.')}catch(err){alert('No se pudo restaurar. Verificá el archivo y el PIN.')}e.target.value=''};
+$('lockNow').onclick=()=>location.reload();
+$('wipe').onclick=()=>{if(confirm('¿Borrar definitivamente todos los datos cifrados de este navegador?')){localStorage.removeItem(DBKEY);localStorage.removeItem(SALTKEY);location.reload()}};
+$('payDate').value=today();$('chargeMonth').value=monthNow();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
