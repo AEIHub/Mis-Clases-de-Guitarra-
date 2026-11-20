@@ -35,7 +35,8 @@ h2{font-size:18px;color:var(--navy);margin:0 0 12px}h3{font-size:15px;margin:0 0
  <div class="lockbox">
   <div style="font-size:40px">🎸</div><h1>Mis clases de guitarra</h1>
   <p id="lockText">Creá un PIN de 4 a 6 dígitos para cifrar tus datos.</p>
-  <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off">
+  <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN de 4 a 6 dígitos" autocomplete="off">
+  <input id="pinConfirm" type="password" inputmode="numeric" maxlength="6" placeholder="Repetí el PIN" autocomplete="off" style="display:none">
   <button class="primary" id="unlock">Continuar</button>
   <p class="muted" style="color:#d5deec">Sin recuperación del PIN. Guardá tu copia cifrada y recordá tu clave.</p>
  </div>
@@ -118,13 +119,15 @@ function render(){
 function renderCharges(list){if(!list.length)return '<p class="muted">No hay registros para mostrar.</p>';return '<div class="tablewrap"><table><tr><th>Responsable</th><th>Período</th><th>Cuota</th><th>Pagado</th><th>Saldo</th></tr>'+list.map(c=>`<tr><td>${escapeHTML(payerName(c))}</td><td>${periodLabel(c.month)}</td><td>${money(c.fee)}</td><td>${money(paid(c))}</td><td><b>${money(balance(c))}</b> ${balance(c)===0?'<span class="tag">Saldado</span>':'<span class="tag warn">Pendiente</span>'}</td></tr>`).join('')+'</table></div>'}
 function renderPayments(list){if(!list.length)return '<p class="muted">No hay pagos.</p>';return '<div class="tablewrap"><table><tr><th>Fecha</th><th>Responsable</th><th>Período</th><th>Importe</th><th>Medio</th></tr>'+list.sort((a,b)=>b.date.localeCompare(a.date)).map(p=>{let c=db.charges.find(x=>x.id===p.chargeId);return `<tr><td>${p.date}</td><td>${escapeHTML(c?payerName(c):'Obligación')}</td><td>${c?periodLabel(c.month):'—'}</td><td>${money(p.amount)}</td><td>${escapeHTML(p.method)}</td></tr>`}).join('')+'</table></div>'}
 async function refresh(){await persist();render()}
+const existingSalt=localStorage.getItem(SALTKEY);
+if(!existingSalt){$('pinConfirm').style.display='block';$('lockText').textContent='Creá un PIN de 4 a 6 dígitos y repetilo para confirmar.'}
 $('unlock').onclick=async()=>{
  const pin=$('pin').value;if(!/^\d{4,6}$/.test(pin)){alert('Ingresá un PIN de 4 a 6 dígitos.');return}
  try{
   const saltStored=localStorage.getItem(SALTKEY);
-  if(!saltStored){const salt=crypto.getRandomValues(new Uint8Array(16));localStorage.setItem(SALTKEY,b64(salt));key=await derive(pin,salt);await persist()}
+  if(!saltStored){if(pin!==$('pinConfirm').value){alert('Los PIN no coinciden. Volvé a escribirlos.');$('pinConfirm').value='';return}const salt=crypto.getRandomValues(new Uint8Array(16));key=await derive(pin,salt);await persist();localStorage.setItem(SALTKEY,b64(salt))}
   else{key=await derive(pin,unb64(saltStored));const raw=localStorage.getItem(DBKEY);if(raw)db=await decryptData(JSON.parse(raw),key);else await persist()}
-  $('lock').classList.add('hidden');$('app').classList.remove('hidden');$('pin').value='';render();
+  $('lock').classList.add('hidden');$('app').classList.remove('hidden');$('pin').value='';$('pinConfirm').value='';render();
  }catch(e){alert('PIN incorrecto o datos dañados. No existe recuperación del PIN.');$('pin').value=''}
 };
 if(!window.crypto?.subtle){$('lockText').textContent='Este navegador no habilita cifrado seguro en este contexto. Abrí la aplicación desde su dirección HTTPS.';$('unlock').disabled=true}
