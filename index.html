@@ -72,9 +72,9 @@ h2{font-size:18px;color:var(--navy);margin:0 0 12px}h3{font-size:15px;margin:0 0
 </section>
 <section id="payments" class="panel">
  <div class="card"><h2>Registrar pago</h2><form id="paymentForm">
- <div class="formgrid"><div><label>Aplicar a obligación pendiente *</label><select id="obligation" required></select></div><div><label>Importe recibido ($) *</label><input id="amount" type="number" min=".01" step=".01" required></div><div><label>Fecha de pago *</label><input id="payDate" type="date" required></div><div><label>Medio</label><select id="method"><option>Efectivo</option><option>Transferencia</option><option>Mercado Pago</option><option>Otro</option></select></div></div>
+ <div class="formgrid"><div><label>Alumno *</label><select id="paymentStudent" required></select><p class="muted">Elegí al alumno que realiza el pago. Si pertenece a un grupo familiar, se mostrará la cuota compartida de ese grupo.</p></div><div><label>Obligación pendiente *</label><select id="obligation" required disabled><option value="">Primero seleccioná un alumno…</option></select></div><div><label>Importe recibido ($) *</label><input id="amount" type="number" min=".01" step=".01" required></div><div><label>Fecha de pago *</label><input id="payDate" type="date" required></div><div><label>Medio</label><select id="method"><option>Efectivo</option><option>Transferencia</option><option>Mercado Pago</option><option>Otro</option></select></div></div>
  <div><label>Observaciones</label><textarea id="payNote"></textarea></div><div class="actions"><button class="primary">Guardar pago</button></div></form></div>
- <div class="notice">Los pagos parciales reducen el saldo de la obligación elegida. Si pagás varios meses, registrá cada período por separado para mantener el detalle.</div>
+ <div class="notice">El importe se completa automáticamente con el saldo total pendiente. En el uso habitual, registrá el pago completo. Si excepcionalmente recibís un pago parcial, podés modificar el importe. Para varios meses, registrá cada período por separado.</div>
 </section>
 <section id="debts" class="panel"><div class="card"><h2>Deudas pendientes</h2><div id="debtList"></div></div></section>
 <section id="history" class="panel"><div class="card"><h2>Historial de movimientos</h2><div class="formgrid"><div><label>Filtrar por mes de obligación</label><input type="month" id="histMonth"></div></div><div id="historyList"></div></div></section>
@@ -111,10 +111,23 @@ function render(){
  $('groupList').innerHTML='<h3>Grupos familiares</h3>'+(db.groups.length?db.groups.map(g=>`<p><b>${escapeHTML(g.name)}</b> · ${money(g.fee)} / mes · ${db.students.filter(s=>s.groupId===g.id).map(s=>escapeHTML(s.name)).join(', ')||'Sin integrantes'}</p>`).join(''):'<p class="muted">No hay grupos.</p>');
  $('sGroup').innerHTML='<option value="">Sin grupo</option>'+db.groups.map(g=>`<option value="${g.id}">${escapeHTML(g.name)}</option>`).join('');
  const open=db.charges.filter(c=>balance(c)>0).sort((a,b)=>a.month.localeCompare(b.month));
- $('obligation').innerHTML='<option value="">Seleccionar obligación…</option>'+open.map(c=>`<option value="${c.id}">${escapeHTML(payerName(c))} · ${periodLabel(c.month)} · saldo ${money(balance(c))}</option>`).join('');
+ const selectedStudent=$('paymentStudent').value;
+ $('paymentStudent').innerHTML='<option value="">Seleccionar alumno…</option>'+db.students.slice().sort((a,b)=>a.name.localeCompare(b.name,'es')).map(st=>`<option value="${st.id}">${escapeHTML(st.name)}${st.groupId?' · '+escapeHTML(db.groups.find(g=>g.id===st.groupId)?.name||'Grupo familiar'):''}</option>`).join('');
+ if(selectedStudent && db.students.some(st=>st.id===selectedStudent)) $('paymentStudent').value=selectedStudent;
+ updatePaymentObligations(false);
  $('chargeList').innerHTML=renderCharges([...db.charges].sort((a,b)=>b.month.localeCompare(a.month)));
  $('debtList').innerHTML=renderCharges(open);
  const hm=$('histMonth').value;$('historyList').innerHTML=renderPayments(db.payments.filter(p=>!hm||db.charges.find(c=>c.id===p.chargeId)?.month===hm));
+}
+function updatePaymentObligations(resetAmount=true){
+ const student=db.students.find(st=>st.id===$('paymentStudent').value);
+ const select=$('obligation');
+ if(!student){select.innerHTML='<option value="">Primero seleccioná un alumno…</option>';select.disabled=true;if(resetAmount)$('amount').value='';return}
+ const relevant=db.charges.filter(c=>balance(c)>0 && (c.studentId===student.id || (student.groupId && c.groupId===student.groupId))).sort((a,b)=>a.month.localeCompare(b.month));
+ select.disabled=false;
+ select.innerHTML='<option value="">Seleccionar período pendiente…</option>'+relevant.map(c=>`<option value="${c.id}">${c.groupId?'Cuota familiar · '+escapeHTML(payerName(c)):'Cuota de '+escapeHTML(student.name)} · ${periodLabel(c.month)} · saldo ${money(balance(c))}</option>`).join('');
+ if(resetAmount)$('amount').value='';
+ if(!relevant.length)select.innerHTML='<option value="">No hay obligaciones pendientes para este alumno</option>';
 }
 function renderCharges(list){if(!list.length)return '<p class="muted">No hay registros para mostrar.</p>';return '<div class="tablewrap"><table><tr><th>Responsable</th><th>Período</th><th>Cuota</th><th>Pagado</th><th>Saldo</th></tr>'+list.map(c=>`<tr><td>${escapeHTML(payerName(c))}</td><td>${periodLabel(c.month)}</td><td>${money(c.fee)}</td><td>${money(paid(c))}</td><td><b>${money(balance(c))}</b> ${balance(c)===0?'<span class="tag">Saldado</span>':'<span class="tag warn">Pendiente</span>'}</td></tr>`).join('')+'</table></div>'}
 function renderPayments(list){if(!list.length)return '<p class="muted">No hay pagos.</p>';return '<div class="tablewrap"><table><tr><th>Fecha</th><th>Responsable</th><th>Período</th><th>Importe</th><th>Medio</th></tr>'+list.sort((a,b)=>b.date.localeCompare(a.date)).map(p=>{let c=db.charges.find(x=>x.id===p.chargeId);return `<tr><td>${p.date}</td><td>${escapeHTML(c?payerName(c):'Obligación')}</td><td>${c?periodLabel(c.month):'—'}</td><td>${money(p.amount)}</td><td>${escapeHTML(p.method)}</td></tr>`}).join('')+'</table></div>'}
@@ -140,6 +153,8 @@ $('generate').onclick=async()=>{
  for(const g of db.groups.filter(g=>g.fee>0)){if(!db.charges.some(c=>c.month===m&&c.groupId===g.id)){db.charges.push({id:uid(),month:m,studentId:null,groupId:g.id,fee:g.fee});created++}}
  $('chargeResult').textContent=`Se generaron ${created} obligación(es) para ${periodLabel(m)}.`;await refresh()
 };
+$('paymentStudent').onchange=()=>updatePaymentObligations(true);
+$('obligation').onchange=()=>{const c=db.charges.find(c=>c.id===$('obligation').value);$('amount').value=c?balance(c).toFixed(2):''};
 $('paymentForm').onsubmit=async e=>{e.preventDefault();const c=db.charges.find(c=>c.id===$('obligation').value),amt=Number($('amount').value);if(!c||amt<=0){alert('Elegí una obligación e ingresá un importe válido.');return}if(amt>balance(c)+0.001){alert('El importe supera el saldo pendiente de esa obligación.');return}
  db.payments.push({id:uid(),chargeId:c.id,amount:amt,date:$('payDate').value,method:$('method').value,note:$('payNote').value});e.target.reset();$('payDate').value=today();await refresh();alert('Pago registrado.')};
 $('histMonth').onchange=render;
